@@ -5,7 +5,6 @@ plugins {
 }
 
 group = "info.mmpa"
-version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
