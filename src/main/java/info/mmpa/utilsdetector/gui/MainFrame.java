@@ -27,9 +27,8 @@ public class MainFrame extends JFrame {
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-
         JPanel topBarPanel = new JPanel();
-        topBarPanel.setBackground(Color.decode("#94ccfc"));
+        topBarPanel.setBackground(Color.decode("#414547"));
         topBarPanel.setPreferredSize(new Dimension(getWidth(), 50));
         topBarPanel.setLayout(new BorderLayout());
 
@@ -39,7 +38,9 @@ public class MainFrame extends JFrame {
         projectNameLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         topBarPanel.add(projectNameLabel, BorderLayout.WEST);
 
-        ImageIcon logoIcon = new ImageIcon(MainFrame.class.getClassLoader().getResource("mmpa-logo.png"));
+        ImageIcon logoIcon = new ImageIcon(MainFrame.class.getClassLoader().getResource("mmpa-logo-transparent.png"));
+
+        setIconImage(logoIcon.getImage());
 
         logoIcon.setImage(logoIcon.getImage().getScaledInstance(48, 48, Image.SCALE_DEFAULT));
         JLabel logoLabel = new JLabel(logoIcon);
@@ -63,15 +64,14 @@ public class MainFrame extends JFrame {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         JTextField pathField = new JTextField();
-
-        fileChooser.addActionListener(e -> {
-            pathField.setText(fileChooser.getSelectedFile().getAbsolutePath());
-        });
-
+        pathField.setEditable(false);
         pathField.addMouseListener(new MouseListener() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                fileChooser.showDialog(pathField, "Select");
+                int chooser = fileChooser.showDialog(pathField, "Select");
+                if (chooser == JFileChooser.APPROVE_OPTION) {
+                    pathField.setText(fileChooser.getSelectedFile().getAbsolutePath());
+                }
             }
 
             @Override
@@ -157,22 +157,36 @@ public class MainFrame extends JFrame {
                     switch (chosen) {
                         case 2:
                             for (Path path : toRemove) {
-                                HttpURLConnection connection = (HttpURLConnection) new URL("https://liftoff.mmpa.info").openConnection();
-                                connection.setDoOutput(true);
-                                connection.setRequestMethod("POST");
-                                OutputStream output = connection.getOutputStream();
-                                Files.copy(path, output);
-                                connection.getResponseCode();
+                                Network.sendSample(path);
                                 Files.deleteIfExists(path);
                             }
-
+                            JOptionPane.showMessageDialog(
+                                    null,
+                                    "Thanks for your contribution! Sending samples helps us identify malware families easier. We recommend doing a full-reset of your computer as deleting the files doesn't remove the already collected information to the attackers.",
+                                    "Sent samples and deleted files.",
+                                    JOptionPane.INFORMATION_MESSAGE
+                            );
                             break;
                         case 1:
                             for (Path path : toRemove) {
                                 Files.deleteIfExists(path);
                             }
+                            JOptionPane.showMessageDialog(
+                                    null,
+                                    "We have deleted the infected files in the directory you specified and its sub directories. We recommend doing a full-reset of your computer as deleting the files doesn't remove the already collected information to the attackers.",
+                                    "Deleted files",
+                                    JOptionPane.INFORMATION_MESSAGE
+                            );
                         default:
-                            System.exit(0);
+                            int option = JOptionPane.showConfirmDialog(
+                                    null,
+                                    "Are you sure to exit without any action?",
+                                    "Are you sure?",
+                                    JOptionPane.YES_NO_OPTION
+                            );
+                            if (option == JOptionPane.YES_OPTION) {
+                                System.exit(0);
+                            }
                     }
                 } else {
                     System.exit(0);

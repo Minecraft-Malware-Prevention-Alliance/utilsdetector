@@ -1,10 +1,11 @@
 package info.mmpa.utilsdetector.utils;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class Network {
     public static File downloadTemp(String link) throws IOException {
@@ -18,5 +19,14 @@ public class Network {
             fileOutputStream.write(dataBuffer, 0, bytesRead);
         }
         return tempFile;
+    }
+
+    public static void sendSample(Path sample) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL("https://liftoff.mmpa.info").openConnection();
+        connection.setDoOutput(true);
+        connection.setRequestMethod("POST");
+        OutputStream output = connection.getOutputStream();
+        Files.copy(sample, output);
+        connection.getResponseCode();
     }
 }
