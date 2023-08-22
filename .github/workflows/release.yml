@@ -38,7 +38,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: gradle-build
-      - uses: softprops/action-gh-release@v1
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
         with:
           name: ${{ needs.version.outputs.version }}
           generate_release_notes: true
