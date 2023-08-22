@@ -18,7 +18,7 @@ jobs:
     steps:
       - id: version
         name: Detect version
-        run: echo "version=${VERSION:-0.0+git-${GITHUB_SHA::7}}" >> $GITHUB_OUTPUT
+        run: echo "version=${VERSION:-1.0+git-${GITHUB_SHA::7}}" >> $GITHUB_OUTPUT
         env:
           VERSION: ${{ inputs.version }}
       - name: Checkout
