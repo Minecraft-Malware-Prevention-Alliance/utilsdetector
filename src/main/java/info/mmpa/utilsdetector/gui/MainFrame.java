@@ -8,9 +8,12 @@ import info.mmpa.utilsdetector.utils.Network;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -18,139 +21,188 @@ import java.util.List;
 import java.util.NavigableMap;
 
 public class MainFrame extends JFrame {
-    private static final String PROJECT_TITLE = "UtilsDetector";
-    private static final String SCAN_BUTTON_TEXT = "Scan";
-    private static final String LOGO_IMAGE_PATH = "mmpa-logo-transparent.png";
-    private static final String SCAN_MODEL_URL = "https://minecraft-malware-prevention-alliance.github.io/meta/WeirdUtils.json";
-
-    private JButton scanButton;
-    private JTextField pathField;
-
     public MainFrame() {
-        initUI();
-    }
+        setTitle("UtilsDetector");
 
-    private void initUI() {
-        setTitle(PROJECT_TITLE);
+
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setIconImage(createImageIcon(LOGO_IMAGE_PATH, "UtilsDetector Logo").getImage());
 
-        JPanel topBarPanel = createTopBarPanel();
-        JPanel mainPanel = createMainPanel();
-
-        add(topBarPanel, BorderLayout.NORTH);
-        add(mainPanel);
-
-        pack();
-        centerWindow(100 * 10, 100 * 5);
-        setVisible(true);
-    }
-
-    private JPanel createTopBarPanel() {
         JPanel topBarPanel = new JPanel();
         topBarPanel.setBackground(Color.decode("#414547"));
         topBarPanel.setPreferredSize(new Dimension(getWidth(), 50));
         topBarPanel.setLayout(new BorderLayout());
 
-        JLabel projectNameLabel = new JLabel(PROJECT_TITLE);
+        JLabel projectNameLabel = new JLabel("UtilsDetector");
         projectNameLabel.setForeground(Color.WHITE);
         projectNameLabel.setFont(new Font("Arial", Font.BOLD, 20));
         projectNameLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         topBarPanel.add(projectNameLabel, BorderLayout.WEST);
 
-        ImageIcon logoIcon = createImageIcon(LOGO_IMAGE_PATH, "UtilsDetector Logo");
+        ImageIcon logoIcon = new ImageIcon(MainFrame.class.getClassLoader().getResource("mmpa-logo-transparent.png"));
+
+        setIconImage(logoIcon.getImage());
+
+        logoIcon.setImage(logoIcon.getImage().getScaledInstance(48, 48, Image.SCALE_DEFAULT));
         JLabel logoLabel = new JLabel(logoIcon);
         logoLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         topBarPanel.add(logoLabel, BorderLayout.EAST);
 
-        return topBarPanel;
-    }
 
-    private JPanel createMainPanel() {
+
+        add(topBarPanel, BorderLayout.NORTH);
+
         JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new GridBagLayout());
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridwidth = GridBagConstraints.NONE;
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        JLabel directoryLabel = new JLabel("Directory to scan (Game Directory)");
-        pathField = createPathField();
-
-        scanButton = createScanButton();
-
-        mainPanel.add(directoryLabel, gbc);
+        mainPanel.setLayout(new GridBagLayout());
+        mainPanel.add(new JLabel("Directory to scan (Game Directory)"), gbc);
         mainPanel.add(Box.createVerticalStrut(5), gbc);
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        JTextField pathField = new JTextField();
+        pathField.setEditable(false);
+        pathField.addMouseListener(new MouseListener() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int chooser = fileChooser.showDialog(pathField, "Select");
+                if (chooser == JFileChooser.APPROVE_OPTION) {
+                    pathField.setText(fileChooser.getSelectedFile().getAbsolutePath());
+                }
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+
+            }
+        });
+
+        JButton scanButton = getScanButton(fileChooser);
+
+
+
         mainPanel.add(pathField, gbc);
         mainPanel.add(Box.createVerticalStrut(20), gbc);
         mainPanel.add(scanButton, gbc);
         mainPanel.add(Box.createVerticalStrut(20), gbc);
 
-        return mainPanel;
+        add(topBarPanel, BorderLayout.NORTH);
+        add(mainPanel);
+
+        pack();
+
+        centerWindow(100 * 10, 100 * 5);
+        setVisible(true);
     }
 
-    private JTextField createPathField() {
-        JTextField textField = new JTextField();
-        textField.setEditable(false);
-        textField.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                chooseDirectory();
+    private static JButton getScanButton(JFileChooser pathField) {
+        JButton scanButton = new JButton("Scan");
+
+        scanButton.addActionListener(e -> {
+            try {
+                NavigableMap<Path, Results> resultsMap = Concoction.builder()
+                        .addInputDirectory(ArchiveLoadContext.RANDOM_ACCESS_JAR, pathField.getCurrentDirectory().toPath())
+                        .addScanModel(Network.downloadTemp("https://minecraft-malware-prevention-alliance.github.io/meta/WeirdUtils.json").toPath())
+                        .scan();
+                List<Path> toRemove = new ArrayList<>();
+                StringBuilder logs = new StringBuilder();
+                resultsMap.forEach((path, results) -> {
+                    if (!results.isEmpty()) toRemove.add(path);
+                    results.forEach(detection -> {
+                        logs.append("Infected class found within ")
+                                .append(path.toString())
+                                .append(" in the class file ")
+                                .append(detection.path().fullDisplay());
+                    });
+                });
+                boolean hadResults = !toRemove.isEmpty();
+                List<String> options = new ArrayList<>();
+                options.add("Quit");
+                if (hadResults) {
+                    options.add("Remove");
+                    options.add("Remove and send samples");
+                }
+
+                int chosen = JOptionPane.showOptionDialog(
+                        null,
+                        String.format("%s You have %s infected file%s.%s",
+                                    hadResults ? "Oh no!" : "Great!",
+                                    toRemove.size(),
+                                    toRemove.size() != 1 ? "s" : "",
+                                    hadResults ? " Would you like to proceed with the removal process?" : ""
+                                ),
+                        "Your results are in!",
+                        JOptionPane.DEFAULT_OPTION,
+                        JOptionPane.WARNING_MESSAGE,
+                        null, options.toArray(new String[0]), "");
+                if (hadResults) {
+                    switch (chosen) {
+                        case 2:
+                            for (Path path : toRemove) {
+                                Network.sendSample(path);
+                                Files.deleteIfExists(path);
+                            }
+                            JOptionPane.showMessageDialog(
+                                    null,
+                                    "Thanks for your contribution! Sending samples helps us identify malware families easier. We recommend doing a full-reset of your computer as deleting the files doesn't remove the already collected information to the attackers.",
+                                    "Sent samples and deleted files.",
+                                    JOptionPane.INFORMATION_MESSAGE
+                            );
+                            break;
+                        case 1:
+                            for (Path path : toRemove) {
+                                Files.deleteIfExists(path);
+                            }
+                            JOptionPane.showMessageDialog(
+                                    null,
+                                    "We have deleted the infected files in the directory you specified and its sub directories. We recommend doing a full-reset of your computer as deleting the files doesn't remove the already collected information to the attackers.",
+                                    "Deleted files",
+                                    JOptionPane.INFORMATION_MESSAGE
+                            );
+                        default:
+                            int option = JOptionPane.showConfirmDialog(
+                                    null,
+                                    "Are you sure to exit without any action?",
+                                    "Are you sure?",
+                                    JOptionPane.YES_NO_OPTION
+                            );
+                            if (option == JOptionPane.YES_OPTION) {
+                                System.exit(0);
+                            }
+                    }
+                } else {
+                    System.exit(0);
+                }
+            } catch (IOException | DynamicScanException ex) {
+                throw new RuntimeException(ex);
             }
         });
-        return textField;
+        return scanButton;
     }
 
-    private void chooseDirectory() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-        int chooser = fileChooser.showDialog(pathField, "Select");
-        if (chooser == JFileChooser.APPROVE_OPTION) {
-            pathField.setText(fileChooser.getSelectedFile().getAbsolutePath());
-        }
-    }
-
-    private JButton createScanButton() {
-        JButton button = new JButton(SCAN_BUTTON_TEXT);
-        button.addActionListener(e -> scan());
-        return button;
-    }
-
-    private void scan() {
-        try {
-            Path scanModelPath = Network.downloadTemp(SCAN_MODEL_URL).toPath();
-            NavigableMap<Path, Results> resultsMap = Concoction.builder()
-                    .addInputDirectory(ArchiveLoadContext.RANDOM_ACCESS_JAR, Path.of(pathField.getText()))
-                    .addScanModel(scanModelPath)
-                    .scan();
-
-            // Process scan results and show appropriate dialog
-            // ...
-
-        } catch (IOException | DynamicScanException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-
-    private void centerWindow(int width, int height) {
+    public void centerWindow(int width, int height) {
         Dimension dimension = Toolkit.getDefaultToolkit().getScreenSize();
         setSize(width, height);
         int x = (int) ((dimension.getWidth() - getWidth()) / 2);
         int y = (int) ((dimension.getHeight() - getHeight()) / 2);
-        setLocation(x, y);
-    }
-
-    private static ImageIcon createImageIcon(String path, String description) {
-        URL imgURL = MainFrame.class.getClassLoader().getResource(path);
-        if (imgURL != null) {
-            return new ImageIcon(imgURL, description);
-        } else {
-            System.err.println("Couldn't find file: " + path);
-            return null;
-        }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new MainFrame());
+        setBounds(x, y, width, height);
     }
 }
